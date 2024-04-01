@@ -1,14 +1,15 @@
 """Various utilities used in the film_net frame interpolator model."""
+import bisect
+import logging
+import os
+import tempfile
+from typing import List
+
 import cv2
-from cv2 import VideoWriter, VideoWriter_fourcc
 import numpy as np
 import torch
-import os
-from typing import List
-import logging
-import bisect
+from cv2 import VideoWriter, VideoWriter_fourcc
 from tqdm import tqdm
-import tempfile
 
 
 def pad_batch(batch, align):
@@ -16,19 +17,36 @@ def pad_batch(batch, align):
     height_to_pad = (align - height % align) if height % align != 0 else 0
     width_to_pad = (align - width % align) if width % align != 0 else 0
 
-    crop_region = [height_to_pad >> 1, width_to_pad >> 1, height + (height_to_pad >> 1), width + (width_to_pad >> 1)]
-    batch = np.pad(batch, ((0, 0), (height_to_pad >> 1, height_to_pad - (height_to_pad >> 1)),
-                           (width_to_pad >> 1, width_to_pad - (width_to_pad >> 1)), (0, 0)), mode='constant')
+    crop_region = [
+        height_to_pad >> 1,
+        width_to_pad >> 1,
+        height + (height_to_pad >> 1),
+        width + (width_to_pad >> 1),
+    ]
+    batch = np.pad(
+        batch,
+        (
+            (0, 0),
+            (height_to_pad >> 1, height_to_pad - (height_to_pad >> 1)),
+            (width_to_pad >> 1, width_to_pad - (width_to_pad >> 1)),
+            (0, 0),
+        ),
+        mode="constant",
+    )
     return batch, crop_region
 
 
 def load_image(path, align=64):
-    image = cv2.cvtColor(cv2.imread(path), cv2.COLOR_BGR2RGB).astype(np.float32) / np.float32(255)
+    image = cv2.cvtColor(cv2.imread(path), cv2.COLOR_BGR2RGB).astype(
+        np.float32
+    ) / np.float32(255)
     image_batch, crop_region = pad_batch(np.expand_dims(image, axis=0), align)
     return image_batch, crop_region
 
 
-def save_video_segment(video_path: str, start_time: float, end_time: float, save_path: str, fps: int):
+def save_video_segment(
+    video_path: str, start_time: float, end_time: float, save_path: str, fps: int
+):
     """
     Saves a segment of the video to a file.
 
@@ -42,11 +60,11 @@ def save_video_segment(video_path: str, start_time: float, end_time: float, save
     cap = cv2.VideoCapture(video_path)
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    fourcc = VideoWriter_fourcc(*'mp4v') # Adjust based on your needs
+    fourcc = VideoWriter_fourcc(*"mp4v")  # Adjust based on your needs
     out = VideoWriter(save_path, fourcc, fps, (width, height))
 
     start_frame = int(start_time * fps)
-    end_frame = int(end_time * fps) if end_time is not None else float('inf')
+    end_frame = int(end_time * fps) if end_time is not None else float("inf")
     current_frame = 0
 
     while cap.isOpened():
@@ -59,6 +77,7 @@ def save_video_segment(video_path: str, start_time: float, end_time: float, save
 
     cap.release()
     out.release()
+
 
 def create_video(frames: List[np.ndarray], save_path: str, fps: int) -> None:
     """
@@ -74,13 +93,14 @@ def create_video(frames: List[np.ndarray], save_path: str, fps: int) -> None:
     os.makedirs(video_folder, exist_ok=True)
 
     height, width = frames[0].shape[:2]
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
     writer = cv2.VideoWriter(save_path, fourcc, fps, (width, height))
 
     for frame in frames:
         writer.write(frame)
 
     writer.release()
+
 
 def concatenate_videos(video_paths: list, output_path: str):
     """
@@ -96,7 +116,7 @@ def concatenate_videos(video_paths: list, output_path: str):
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     cap.release()
 
-    fourcc = VideoWriter_fourcc(*'mp4v')
+    fourcc = VideoWriter_fourcc(*"mp4v")
     out = VideoWriter(output_path, fourcc, fps, (width, height))
 
     for video_path in video_paths:

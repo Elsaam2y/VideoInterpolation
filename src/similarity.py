@@ -1,11 +1,12 @@
 """Images similarity class based on CLIP."""
-import torch
+import logging
+import os
+
 import clip
-from PIL import Image
 import cv2
 import numpy as np
-import os 
-import logging
+import torch
+from PIL import Image
 
 
 class VideoFrameSimilarity:
@@ -14,7 +15,7 @@ class VideoFrameSimilarity:
         self.model, self.preprocess = clip.load("ViT-B/32", device=self.device)
         self.crop_width = crop_width
         self.crop_height = crop_height
-    
+
     def center_crop(self, img):
         width, height = img.size
         left = (width - self.crop_width) / 2
@@ -23,8 +24,11 @@ class VideoFrameSimilarity:
         bottom = (height + self.crop_height) / 2
 
         return img.crop((left, top, right, bottom))
-    
+
     def save_image(self, img, save_path):
+        directory_path = os.path.dirname(save_path)
+        if not os.path.exists(directory_path):
+            os.makedirs(directory_path)
         img.save(save_path)
 
     def process_image(self, img):
@@ -47,27 +51,35 @@ class VideoFrameSimilarity:
         cap.release()
         return frames
 
-    def compute_similarity(self, video_path, time1, time2, interpolation_interval, crop_width=720, crop_height=720):
+    def compute_similarity(
+        self,
+        video_path,
+        time1,
+        time2,
+        interpolation_interval,
+        crop_width=720,
+        crop_height=720,
+    ):
         # Open the video file
         cap = cv2.VideoCapture(video_path)
         fps = cap.get(cv2.CAP_PROP_FPS)
-        
+
         # Convert time stamps to frame indices
         frame1_index = int(time1 * fps)
         frame2_index = int(time2 * fps)
-        
+
         # Adjust start_frame based on the interpolation_interval
         start_frame = max(frame2_index - int((interpolation_interval - 0.5) * fps), 0)
         end_frame = frame2_index
-        
+
         reference_frame = self.extract_frames(video_path, frame1_index, frame1_index)[0]
         reference_processed = self.process_image(reference_frame)
         reference_features = self.model.encode_image(reference_processed)
-        
+
         # Save the reference image
-        reference_save_path = os.path.join("output_frames", f"start_frame.png")
+        reference_save_path = os.path.join("assets/output_frames", f"start_frame.png")
         self.save_image(reference_frame, reference_save_path)
-        logging.info(f'Reference start frame saved at {reference_save_path}.')
+        logging.info(f"Reference start frame saved at {reference_save_path}.")
 
         # Extract frames in the specified range
         frames = self.extract_frames(video_path, start_frame, end_frame)
@@ -88,10 +100,16 @@ class VideoFrameSimilarity:
 
         # Convert the most similar frame index back to a timestamp
         most_similar_timestamp = max_similarity_index / fps
-        logging.info(f'Most similar frame is at timestamp: {most_similar_timestamp:.2f}s with a similarity score of: {max_similarity}.')
+        logging.info(
+            f"Most similar frame is at timestamp: {most_similar_timestamp:.2f}s with a similarity score of: {max_similarity}."
+        )
         # Save the most similar frame, save it
-        most_similar_frame = self.extract_frames(video_path, max_similarity_index, max_similarity_index)[0]
-        most_similar_save_path = os.path.join("output_frames", f"most_similar_frame.png")
+        most_similar_frame = self.extract_frames(
+            video_path, max_similarity_index, max_similarity_index
+        )[0]
+        most_similar_save_path = os.path.join(
+            "assets/output_frames", f"most_similar_frame.png"
+        )
         self.save_image(most_similar_frame, most_similar_save_path)
-        logging.info(f'Most similar image saved at {most_similar_save_path}.')        
+        logging.info(f"Most similar image saved at {most_similar_save_path}.")
         return most_similar_timestamp, max_similarity, fps
