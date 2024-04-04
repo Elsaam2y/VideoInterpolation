@@ -38,7 +38,7 @@ def main():
         parser.add_argument(
             "--input_video",
             type=str,
-            default="assets/HeyGen.mp4",
+            default="assets/video.mp4",
             help="Path to the input video",
         )
         if not initial:
